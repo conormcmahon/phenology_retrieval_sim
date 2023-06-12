@@ -1,10 +1,11 @@
 
+library(here)
+
 source(here::here("phenology_fit_tester.R"))
 
-test_output <- apply(parameter_values, getPhenologyFit, MARGIN=1, return_data_series=FALSE, try_quadratic=FALSE, try_linear=FALSE)
+test_output <- apply(parameter_values, getPhenologyFit, MARGIN=1, return_data_series=FALSE, try_quadratic=TRUE, try_linear=TRUE)
 test_df <- bind_rows(test_output)
-save(test_output, file=here::here("phenology_fit_test_parameters.csv"))
-
+write(test_df, file=here::here("all_methods_simulation_results.csv"))
 
 # Generate a plot for a given parameter set
 getPlot <- function(parameters)
@@ -12,96 +13,211 @@ getPlot <- function(parameters)
   getPhenologyFit(parameters, return_data_series=TRUE)[[9]]
 }
 
-ggsave(here::here("pheno_fit_goodness_16_days.png"),
+
+# ***************************************************************************************
+# *********************** First, let's make a bunch of histograms ***********************
+# ***************************************************************************************
+# These graphs show a histogram for each combination of sampling period, noise, and cloud cover
+# They also have vertical lines superimposed for the mean, the 5th percentile, and 95th percentile
+# NOTE - not using these in final paper
+
+set.seed(1)
+
+ggsave(here::here("figures","pheno_fit_goodness_16_days.png"),
        ggplot() +
-         geom_histogram(data = test_df %>% filter(sample_period==16, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9)),
+         geom_histogram(data = test_df %>% filter(sample_period==16, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.5, 0.75, 0.9), signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 10, 20, 100, 500)),
                         aes(x=r_sqd)) +
-         geom_vline(data = test_df %>% filter(sample_period==16, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9)) %>%
+         geom_vline(data = test_df %>% filter(sample_period==16, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.5, 0.75, 0.9), signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 10, 20, 100, 500)) %>%
                       group_by(cloudy_fraction,signal_to_noise_ratio) %>%
                       summarize(mean_rsqd = median(r_sqd)),
                     aes(xintercept=mean_rsqd),
                     col="red") +
-         geom_vline(data = test_df %>% filter(sample_period==16, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9)) %>%
+         geom_vline(data = test_df %>% filter(sample_period==16, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.5, 0.75, 0.9), signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 10, 20, 100, 500)) %>%
                       group_by(cloudy_fraction,signal_to_noise_ratio) %>%
                       summarize(mean_rsqd = quantile(r_sqd, 0.05)),
                     aes(xintercept=mean_rsqd),
                     col="blue") +
-         geom_vline(data = test_df %>% filter(sample_period==16, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9)) %>%
+         geom_vline(data = test_df %>% filter(sample_period==16, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.5, 0.75, 0.9), signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 10, 20, 100, 500)) %>%
                       group_by(cloudy_fraction,signal_to_noise_ratio) %>%
                       summarize(mean_rsqd = quantile(r_sqd, 0.95)),
                     aes(xintercept=mean_rsqd),
                     col="blue") +
-         facet_wrap(~cloudy_fraction+signal_to_noise_ratio,ncol=6),
-       width=12, height=6)
+         facet_wrap(~signal_to_noise_ratio+(cloudy_fraction),ncol=4) + 
+         scale_y_continuous(breaks=c(0,50,100,150)) + 
+         theme(strip.background = element_blank(),
+               strip.text.x = element_blank()) + 
+         xlab("Frequency") + 
+         ylab("R-sqd"),
+       width=8, height=9) 
 
-
-ggsave(here::here("pheno_fit_goodness_8_days.png"),
+ggsave(here::here("figures","pheno_fit_goodness_8_days.png"),
        ggplot() +
-         geom_histogram(data = test_df %>% filter(sample_period==8, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9)),
+         geom_histogram(data = test_df %>% filter(sample_period==8, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.5, 0.75, 0.9), signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 10, 20, 100, 500)),
                         aes(x=r_sqd)) +
-         geom_vline(data = test_df %>% filter(sample_period==8, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9)) %>%
+         geom_vline(data = test_df %>% filter(sample_period==8, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.5, 0.75, 0.9), signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 10, 20, 100, 500)) %>%
                       group_by(cloudy_fraction,signal_to_noise_ratio) %>%
                       summarize(mean_rsqd = median(r_sqd)),
                     aes(xintercept=mean_rsqd),
                     col="red") +
-         geom_vline(data = test_df %>% filter(sample_period==8, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9)) %>%
+         geom_vline(data = test_df %>% filter(sample_period==8, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.5, 0.75, 0.9), signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 10, 20, 100, 500)) %>%
                       group_by(cloudy_fraction,signal_to_noise_ratio) %>%
                       summarize(mean_rsqd = quantile(r_sqd, 0.05)),
                     aes(xintercept=mean_rsqd),
                     col="blue") +
-         geom_vline(data = test_df %>% filter(sample_period==8, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9)) %>%
+         geom_vline(data = test_df %>% filter(sample_period==8, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.5, 0.75, 0.9), signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 10, 20, 100, 500)) %>%
                       group_by(cloudy_fraction,signal_to_noise_ratio) %>%
                       summarize(mean_rsqd = quantile(r_sqd, 0.95)),
                     aes(xintercept=mean_rsqd),
                     col="blue") +
-         facet_wrap(~cloudy_fraction+signal_to_noise_ratio,ncol=6),
-       width=12, height=6)
+         facet_wrap(~signal_to_noise_ratio+(cloudy_fraction),ncol=4) + 
+         scale_y_continuous(breaks=c(0,50,100,150)) + 
+         theme(strip.background = element_blank(),
+               strip.text.x = element_blank()) + 
+         xlab("Frequency") + 
+         ylab("R-sqd"),
+       width=8, height=9) 
 
-
-ggsave(here::here("pheno_fit_goodness_5_days.png"),
+ggsave(here::here("figures","pheno_fit_goodness_5_days.png"),
        ggplot() +
-         geom_histogram(data = test_df %>% filter(sample_period==5, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9)),
+         geom_histogram(data = test_df %>% filter(sample_period==5, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.5, 0.75, 0.9), signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 10, 20, 100, 500)),
                         aes(x=r_sqd)) +
-         geom_vline(data = test_df %>% filter(sample_period==5, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9)) %>%
+         geom_vline(data = test_df %>% filter(sample_period==5, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.5, 0.75, 0.9), signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 10, 20, 100, 500)) %>%
                       group_by(cloudy_fraction,signal_to_noise_ratio) %>%
                       summarize(mean_rsqd = median(r_sqd)),
                     aes(xintercept=mean_rsqd),
                     col="red") +
-         geom_vline(data = test_df %>% filter(sample_period==5, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9)) %>%
+         geom_vline(data = test_df %>% filter(sample_period==5, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.5, 0.75, 0.9), signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 10, 20, 100, 500)) %>%
                       group_by(cloudy_fraction,signal_to_noise_ratio) %>%
                       summarize(mean_rsqd = quantile(r_sqd, 0.05)),
                     aes(xintercept=mean_rsqd),
                     col="blue") +
-         geom_vline(data = test_df %>% filter(sample_period==5, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9)) %>%
+         geom_vline(data = test_df %>% filter(sample_period==5, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.5, 0.75, 0.9), signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 10, 20, 100, 500)) %>%
                       group_by(cloudy_fraction,signal_to_noise_ratio) %>%
                       summarize(mean_rsqd = quantile(r_sqd, 0.95)),
                     aes(xintercept=mean_rsqd),
                     col="blue") +
-         facet_wrap(~cloudy_fraction+signal_to_noise_ratio,ncol=6),
-       width=12, height=6)
+         facet_wrap(~signal_to_noise_ratio+(cloudy_fraction),ncol=4) + 
+         scale_y_continuous(breaks=c(0,50,100,150)) + 
+         theme(strip.background = element_blank(),
+               strip.text.x = element_blank()) + 
+         xlab("Frequency") + 
+         ylab("R-sqd"),
+       width=8, height=9) 
 
-
-ggsave(here::here("pheno_fit_goodness_2_days.png"),
+ggsave(here::here("figures","pheno_fit_goodness_2_days.png"),
        ggplot() +
-         geom_histogram(data = test_df %>% filter(sample_period==2, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9)),
+         geom_histogram(data = test_df %>% filter(sample_period==2, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.5, 0.75, 0.9), signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 10, 20, 100, 500)),
                         aes(x=r_sqd)) +
-         geom_vline(data = test_df %>% filter(sample_period==2, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9)) %>%
+         geom_vline(data = test_df %>% filter(sample_period==2, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.5, 0.75, 0.9), signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 10, 20, 100, 500)) %>%
                       group_by(cloudy_fraction,signal_to_noise_ratio) %>%
                       summarize(mean_rsqd = median(r_sqd)),
                     aes(xintercept=mean_rsqd),
                     col="red") +
-         geom_vline(data = test_df %>% filter(sample_period==2, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9)) %>%
+         geom_vline(data = test_df %>% filter(sample_period==2, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.5, 0.75, 0.9), signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 10, 20, 100, 500)) %>%
                       group_by(cloudy_fraction,signal_to_noise_ratio) %>%
                       summarize(mean_rsqd = quantile(r_sqd, 0.05)),
                     aes(xintercept=mean_rsqd),
                     col="blue") +
-         geom_vline(data = test_df %>% filter(sample_period==2, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9)) %>%
+         geom_vline(data = test_df %>% filter(sample_period==2, neighborhood_window_width==30, cloudy_fraction %in% c(0, 0.5, 0.75, 0.9), signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 10, 20, 100, 500)) %>%
                       group_by(cloudy_fraction,signal_to_noise_ratio) %>%
                       summarize(mean_rsqd = quantile(r_sqd, 0.95)),
                     aes(xintercept=mean_rsqd),
                     col="blue") +
-         facet_wrap(~cloudy_fraction+signal_to_noise_ratio,ncol=6),
-       width=12, height=6)
+         facet_wrap(~signal_to_noise_ratio+(cloudy_fraction),ncol=4) + 
+         scale_y_continuous(breaks=c(0,50,100,150)) + 
+         theme(strip.background = element_blank(),
+               strip.text.x = element_blank()) + 
+         xlab("Frequency") + 
+         ylab("R-sqd"),
+       width=8, height=9) 
+
+
+
+
+
+# ***************************************************************************************
+# ****** Next, we'll do something similar all on one plot, using box plots **************
+# ***************************************************************************************
+# NOTE - not using these in final paper
+
+boxplot_results <- ggplot(data = test_df %>% 
+                            filter(sample_period %in% c(2, 5, 8, 16), 
+                                   neighborhood_window_width==30, 
+                                   cloudy_fraction %in% c(0, 0.5, 0.75, 0.9), 
+                                   signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 20, 100)),
+       aes(y=r_sqd, group=sample_period, x=factor(sample_period))) +
+  geom_boxplot() + 
+  stat_summary(geom = "point", fun = \(x) quantile(x, 0.05,na.rm=T),shape=16, size=2,color="red")+
+  stat_summary(geom = "point", fun = \(x) quantile(x, 0.95,na.rm=T),shape=16, size=2,color="blue")+
+  geom_hline(yintercept=0.8,linetype='dashed') + 
+  facet_wrap(~signal_to_noise_ratio+(cloudy_fraction),ncol=4) + 
+  scale_y_continuous(breaks=c(0,50,100,150)) + 
+  theme(strip.background = element_blank(),
+        strip.text.x = element_blank()) + 
+  xlab("Frequency") + 
+  ylab("R-sqd")
+
+ggsave(here::here("figures","boxplot.png"), boxplot_results, width=4, height=7)
+
+
+# ***************************************************************************************
+# *** Next, we'll do something similar AGAIN, but using line plots with quantiles *******
+# ***************************************************************************************
+# Again, decided not to use this in final paper
+
+lineplot_results <- ggplot(data = test_df %>% 
+                             filter(neighborhood_window_width==30, 
+                                    cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9), 
+                                    signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 20, 100)),
+                           aes(y=r_sqd, x=sample_period)) +
+  stat_summary(geom = "point", fun = \(x) quantile(x, 0.05,na.rm=T),size=1,color="red")+
+  stat_summary(geom = "point", fun = \(x) quantile(x, 0.5,na.rm=T),size=1,color="black")+
+  stat_summary(geom = "point", fun = \(x) quantile(x, 0.95,na.rm=T),size=1,color="blue")+
+  stat_summary(geom = "line", fun = \(x) quantile(x, 0.05,na.rm=T),color="red")+
+  stat_summary(geom = "line", fun = \(x) quantile(x, 0.5,na.rm=T),color="black")+
+  stat_summary(geom = "line", fun = \(x) quantile(x, 0.95,na.rm=T),color="blue")+
+  geom_hline(yintercept=0.8,linetype='dashed') + 
+  facet_wrap(~signal_to_noise_ratio+(cloudy_fraction),ncol=4) + 
+  scale_y_continuous(breaks=(0:5)/5, limits=c(0,1), expand=c(0,0))+ 
+  theme_bw() + 
+  theme(strip.background = element_blank(),
+        strip.text.x = element_blank(),
+        panel.spacing = unit(0.7, "lines")) + 
+  xlab("Satellite Return Interval") + 
+  ylab("R-sqd")
+
+ggsave(here::here("figures","lineplot.png"), lineplot_results, width=5, height=7)
+
+
+
+# *********************************************************************************************************************
+# *** Last, let's try saving this while making the X axis the cloud fraction and faceting by sample interval... *******
+# *********************************************************************************************************************
+# This is what we used in final paper!
+
+lineplot_cf_x <- ggplot(data = test_df %>% 
+                             filter(neighborhood_window_width==30, 
+                                    signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 20, 100)),
+                           aes(y=r_sqd, x=cloudy_fraction)) +
+  stat_summary(geom = "point", fun = \(x) quantile(x, 0.05,na.rm=T),size=1,color="red")+
+  stat_summary(geom = "point", fun = \(x) quantile(x, 0.5,na.rm=T),size=1,color="black")+
+  stat_summary(geom = "point", fun = \(x) quantile(x, 0.95,na.rm=T),size=1,color="blue")+
+  stat_summary(geom = "line", fun = \(x) quantile(x, 0.05,na.rm=T),color="red")+
+  stat_summary(geom = "line", fun = \(x) quantile(x, 0.5,na.rm=T),color="black")+
+  stat_summary(geom = "line", fun = \(x) quantile(x, 0.95,na.rm=T),color="blue")+
+  geom_hline(yintercept=0.8,linetype='dashed') + 
+  facet_wrap(~signal_to_noise_ratio+sample_period,ncol=6) + 
+  scale_y_continuous(breaks=(0:5)/5, limits=c(0,1), expand=c(0,0))+
+  scale_x_continuous(breaks=(0:5)/5, limits=c(0,1), expand=c(0,0))+ 
+  theme_bw() + 
+  theme(strip.background = element_blank(),
+        strip.text.x = element_blank(),
+        panel.spacing = unit(0.7, "lines")) + 
+  xlab("Satellite Return Interval") + 
+  ylab("R-sqd")
+
+ggsave(here::here("figures","lineplot_cf_x.png"), lineplot_cf_x, width=7, height=7)
+
 
 
 test_df_median$method <- "median"
@@ -110,7 +226,7 @@ test_df_full$method <- "quadratic"
 test_df_all <- rbind(test_df_median, test_df_linear, test_df_full)
 
 
-ggsave(here::here("pheno_fit_goodness_1_days_boxplot.png"),
+ggsave(here::here("figures","pheno_fit_goodness_1_days_boxplot.png"),
        ggplot(data = test_df_all %>% filter(sample_period==1, 
                                             neighborhood_window_width==30, 
                                             cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9))) +
@@ -118,7 +234,7 @@ ggsave(here::here("pheno_fit_goodness_1_days_boxplot.png"),
          facet_wrap(~cloudy_fraction+signal_to_noise_ratio,ncol=6),
        width=12, height=6) 
 
-ggsave(here::here("pheno_fit_goodness_2_days_boxplot.png"),
+ggsave(here::here("figures","pheno_fit_goodness_2_days_boxplot.png"),
        ggplot(data = test_df_all %>% filter(sample_period==2, 
                                             neighborhood_window_width==30, 
                                             cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9))) +
@@ -126,7 +242,7 @@ ggsave(here::here("pheno_fit_goodness_2_days_boxplot.png"),
          facet_wrap(~cloudy_fraction+signal_to_noise_ratio,ncol=6),
        width=12, height=6) 
 
-ggsave(here::here("pheno_fit_goodness_5_days_boxplot.png"),
+ggsave(here::here("figures","pheno_fit_goodness_5_days_boxplot.png"),
        ggplot(data = test_df_all %>% filter(sample_period==5, 
                                             neighborhood_window_width==30, 
                                             cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9))) +
@@ -134,7 +250,7 @@ ggsave(here::here("pheno_fit_goodness_5_days_boxplot.png"),
          facet_wrap(~cloudy_fraction+signal_to_noise_ratio,ncol=6),
        width=12, height=6) 
 
-ggsave(here::here("pheno_fit_goodness_8_days_boxplot.png"),
+ggsave(here::here("figures","pheno_fit_goodness_8_days_boxplot.png"),
        ggplot(data = test_df_all %>% filter(sample_period==8, 
                                             neighborhood_window_width==30, 
                                             cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9))) +
@@ -142,8 +258,8 @@ ggsave(here::here("pheno_fit_goodness_8_days_boxplot.png"),
          facet_wrap(~cloudy_fraction+signal_to_noise_ratio,ncol=6),
        width=12, height=6) 
 
-ggsave(here::here("pheno_fit_goodness_16_days_boxplot.png"),
-       ggplot(data = test_df_all %>% filter(sample_period==16, 
+ggsave(here::here("figures","pheno_fit_goodness_5_days_boxplot.png"),
+       ggplot(data = test_df_all %>% filter(sample_period==5, 
                                             neighborhood_window_width==30, 
                                             cloudy_fraction %in% c(0, 0.25, 0.5, 0.75, 0.9))) +
          geom_violin(aes(y=r_sqd, x=method, group=factor(method, levels=c("median","linear","quadratic"))), draw_quantiles=c(0.5)) +
@@ -243,7 +359,7 @@ ggplot(comparison_summary) +
   geom_hline(yintercept=0.8, col="pink2")
 
 # # Visualize Landsat Results, 50% clouds
-# #  test_df %>% filter(cloudy_fraction == 0.5, sample_period == 16, signal_to_noise_ratio == 20, neighborhood_window_width == 30)
+# #  test_df %>% filter(cloudy_fraction == 0.5, sample_period == 5, signal_to_noise_ratio == 20, neighborhood_window_width == 30)
 # for(ind in 60841:61141)
 # {
 #   print(test_output[[ind]][[2]] + geom_text(aes(label=round(test_output[[ind]][[1]]$r_sqd,3), y=0.6, x=0.1)))

@@ -7,7 +7,7 @@ parameter_values <- crossing(spring_rate = c(2,5,10,20,30),
                              spring_doy = 90, 
                              fall_rate = c(2,5,10,20,30), 
                              fall_doy = c(150,180,210,240,270,300), 
-                             signal_to_noise_ratio = c(0.5, 1, 2, 5, 10, 20), 
+                             signal_to_noise_ratio = c(0.5, 1, 2, 5, 10, 20, 100, 200, 500), 
                              sample_period = c(1,2,5,8,16,365/12), 
                              neighborhood_window_width = c(10, 20, 30, 40, 50, 60), 
                              cloudy_fraction = c(0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95))
@@ -41,15 +41,16 @@ getPhenologyFit <- function(parameter_block, return_data_series=FALSE, try_quadr
   # Fixed Parameters
   num_fitting_points <- 52
   max_greenness <- 0.9
-  noise_sd <- max_greenness / signal_to_noise_ratio
+  #noise_sd <- max_greenness / signal_to_noise_ratio
   
   overpass_doys <- (1:floor(365/sample_period))*sample_period
   
   # Double-logistic Function for Phenology Examples
   random_phenology <- max_greenness * (plogis(overpass_doys,location=spring_doy,scale=spring_rate) - plogis(overpass_doys,location=fall_doy,scale=fall_rate))
   # Add Gaussian noise to phenology 
-  random_phenology_with_noise <- random_phenology + rnorm(length(random_phenology), mean=0, sd=noise_sd)
-  
+  random_phenology_with_noise <- random_phenology + rnorm(length(random_phenology), 
+                                                          mean=0, 
+                                                          sd=abs(random_phenology/signal_to_noise_ratio + .05)) #noise_sd)
   # Remove samples that are cloudy
   clouds <- sample(1:length(random_phenology_with_noise),
                    length(random_phenology_with_noise)*cloudy_fraction)
@@ -114,7 +115,7 @@ getPhenologyFit <- function(parameter_block, return_data_series=FALSE, try_quadr
   phenology_fit <- unlist(lapply(fitting_points, fitAtPoint, phenology=random_phenology_cloudless, doy_vector=overpass_doys_cloudless, window_width=neighborhood_window_width))
   
   # Final linear gap-filling in phenology fit
-  phenology_fit <- na.approx(c(phenology_fit,phenology_fit,phenology_fit))[(1+length(fitting_points)):(2*length(fitting_points))]
+  phenology_fit <- na.approx(c(phenology_fit,phenology_fit,phenology_fit))[(2+length(fitting_points)-min(which(!is.na(phenology_fit)))):(1+2*length(fitting_points)-min(which(!is.na(phenology_fit))))]
   fitting_time <- toc(quiet=TRUE)
   
   # Some Error Metrics...
@@ -142,12 +143,17 @@ getPhenologyFit <- function(parameter_block, return_data_series=FALSE, try_quadr
   if(!return_data_series)  
     return(output_dataframe)
 
+  fitting_data <- data.frame(dates=fitting_points, fitted=phenology_fit, reference=random_phenology_reference)
+  retrieved_data <- data.frame(doy=overpass_doys_cloudless, greenness=random_phenology_cloudless)
+  
   # Generate output plot comparing phenology prediction to reference
-  plot_fit <- ggplot(data=data.frame(dates=fitting_points, fitted=phenology_fit, reference=random_phenology_reference)) + 
-    geom_line(aes(x=dates,y=fitted), col="red") + 
-    geom_line(aes(x=dates,y=reference)) + 
-    geom_point(data=data.frame(doy=overpass_doys_cloudless, greenness=random_phenology_cloudless),
-               aes(x=doy, y=random_phenology_cloudless), col="blue")
+  plot_fit <- ggplot() + 
+    geom_point(data=retrieved_data,
+               aes(x=doy, y=random_phenology_cloudless), col="blue", size=1) + 
+    geom_line(data=fitting_data, 
+              aes(x=dates,y=fitted), col="red") + 
+    geom_line(data=fitting_data, 
+              aes(x=dates,y=reference))
     
   return(list(output_dataframe,
               overpass_doys, random_phenology_reference, 
@@ -155,3 +161,5 @@ getPhenologyFit <- function(parameter_block, return_data_series=FALSE, try_quadr
               fitting_points, phenology_fit, random_phenology_reference,
               plot_fit))
 }
+
+
