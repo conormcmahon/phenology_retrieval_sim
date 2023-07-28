@@ -334,23 +334,22 @@ ggplot(long_ag_df) +
                          contour_var = "ndensity")
 # Get linear model again of ALL Landsat vs. Sen2 phenology data
 summary(lm(data=long_ag_df, ndvi_s2~ndvi_l))
-    # Call:
-    #   lm(formula = ndvi_s2 ~ ndvi_l, data = long_ag_df)
-    # 
-    # Residuals:
-    #   Min       1Q   Median       3Q      Max 
-    # -0.91983 -0.02785 -0.00008  0.02619  0.72218 
-    # 
-    # Coefficients:
-    #   Estimate Std. Error t value Pr(>|t|)    
-    # (Intercept) -4.711e-02  6.625e-05    -711   <2e-16 ***
-    #   ndvi_l       1.031e+00  1.519e-04    6788   <2e-16 ***
-    #   ---
-    #   Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
-    # 
-    # Residual standard error: 0.0469 on 2856722 degrees of freedom
-    # Multiple R-squared:  0.9416,	Adjusted R-squared:  0.9416 
-    # F-statistic: 4.608e+07 on 1 and 2856722 DF,  p-value: < 2.2e-16
+# Call:
+#   lm(formula = ndvi_s2 ~ ndvi_l, data = long_ag_df)
+# 
+# Residuals:
+#   Min       1Q   Median       3Q      Max 
+# -0.91983 -0.02785 -0.00008  0.02619  0.72218 
+# 
+# Coefficients:
+#   Estimate Std. Error t value Pr(>|t|)    
+# (Intercept) -4.711e-02  6.625e-05    -711   <2e-16 ***
+#   ndvi_l       1.031e+00  1.519e-04    6788   <2e-16 ***
+#   ---
+#   Signif. codes:  0 ‘***’ 0.001 ‘**’ 0.01 ‘*’ 0.05 ‘.’ 0.1 ‘ ’ 1
+# 
+# Residual standard error: 0.0469 on 2856722 degrees of freedom
+# Multiple R-squared:  0.9416,	Adjusted R-squared:  0.9416 
+# F-statistic: 4.608e+07 on 1 and 2856722 DF,  p-value: < 2.2e-16
 
 
-  

@@ -3,9 +3,14 @@ library(here)
 
 source(here::here("phenology_fit_tester.R"))
 
-test_output <- apply(parameter_values, getPhenologyFit, MARGIN=1, return_data_series=FALSE, try_quadratic=TRUE, try_linear=TRUE)
+test_output <- apply(parameter_values, getPhenologyFit, MARGIN=1, 
+                     return_data_series=FALSE, 
+                     try_quadratic=TRUE, 
+                     try_linear=TRUE,
+                     soil_spec=c(0.24,0.4), 
+                     leaf_spec=c(0.05,0.5))
 test_df <- bind_rows(test_output)
-write(test_df, file=here::here("all_methods_simulation_results.csv"))
+write_csv(test_df, file=here::here("all_methods_simulation_results.csv"))
 
 # Generate a plot for a given parameter set
 getPlot <- function(parameters)
@@ -193,11 +198,11 @@ ggsave(here::here("figures","lineplot.png"), lineplot_results, width=5, height=7
 # *********************************************************************************************************************
 # *** Last, let's try saving this while making the X axis the cloud fraction and faceting by sample interval... *******
 # *********************************************************************************************************************
-# This is what we used in final paper!
 
-lineplot_cf_x <- ggplot(data = test_df %>% 
-                             filter(neighborhood_window_width==30, 
-                                    signal_to_noise_ratio %in% c(0.5, 1.0, 5.0, 20, 100)),
+lineplot_cf_x <- ggplot(data = test_df %>%
+                             filter(neighborhood_window_width==30,
+                                    signal_to_noise_ratio %in% c(2.0, 5.0, 20, 100),
+                                    fixed_noise == 0.02),
                            aes(y=r_sqd, x=cloudy_fraction)) +
   stat_summary(geom = "point", fun = \(x) quantile(x, 0.05,na.rm=T),size=1,color="red")+
   stat_summary(geom = "point", fun = \(x) quantile(x, 0.5,na.rm=T),size=1,color="black")+
@@ -205,18 +210,40 @@ lineplot_cf_x <- ggplot(data = test_df %>%
   stat_summary(geom = "line", fun = \(x) quantile(x, 0.05,na.rm=T),color="red")+
   stat_summary(geom = "line", fun = \(x) quantile(x, 0.5,na.rm=T),color="black")+
   stat_summary(geom = "line", fun = \(x) quantile(x, 0.95,na.rm=T),color="blue")+
-  geom_hline(yintercept=0.8,linetype='dashed') + 
+  geom_hline(yintercept=0.8,linetype='dashed') +
+  facet_wrap(~signal_to_noise_ratio+sample_period,ncol=6) +
+  scale_y_continuous(breaks=(1:5)/5, limits=c(0,1), expand=c(0,0))+
+  scale_x_continuous(breaks=(1:5)/5, limits=c(0,1), expand=c(0,0))+
+  theme_bw() +
+  theme(strip.background = element_blank(),
+        strip.text.x = element_blank(),
+        panel.spacing = unit(0.7, "lines")) +
+  xlab("Satellite Return Interval") +
+  ylab("R-sqd")
+ggsave(here::here("figures","lineplot_cf_x.png"), lineplot_cf_x, width=9, height=5)
+
+# This is what we used in final paper!
+
+density_line_plot <- ggplot(data = test_df %>% 
+                              filter(neighborhood_window_width==30, 
+                                     signal_to_noise_ratio %in% c(2, 5, 20, 100),
+                                     fixed_noise == 0.05),
+                            aes(y=r_sqd, x=cloudy_fraction)) +
+  geom_density_2d_filled(contour_var="ndensity") + 
+  stat_summary(geom = "line", fun = \(x) quantile(x, 0.5,na.rm=T),color="red",size=1) +
+  geom_hline(yintercept=0.8,linetype='dashed',color="white",size=0.5) + 
+  geom_hline(yintercept=0.6,linetype='dashed',color="white",size=0.5) + 
   facet_wrap(~signal_to_noise_ratio+sample_period,ncol=6) + 
-  scale_y_continuous(breaks=(0:5)/5, limits=c(0,1), expand=c(0,0))+
-  scale_x_continuous(breaks=(0:5)/5, limits=c(0,1), expand=c(0,0))+ 
+  scale_y_continuous(breaks=(1:5)/5, limits=c(0,1), expand=c(0,0))+
+  scale_x_continuous(breaks=(1:5)/5, limits=c(0,1), expand=c(0,0))+ 
   theme_bw() + 
   theme(strip.background = element_blank(),
         strip.text.x = element_blank(),
         panel.spacing = unit(0.7, "lines")) + 
   xlab("Satellite Return Interval") + 
   ylab("R-sqd")
-
-ggsave(here::here("figures","lineplot_cf_x.png"), lineplot_cf_x, width=7, height=7)
+density_line_plot
+ggsave(here::here("figures","density_line_plot.png"), density_line_plot, width=9, height=5)
 
 
 
@@ -374,3 +401,23 @@ ggplot(comparison_summary) +
 #   print(paste("mapped ", ind, sep=""))
 #   Sys.sleep(1)
 # }
+
+
+# Visualizing differences by sample window width
+#   Try different iterations of the below...
+#   With medium noise (e.g. fixed_noise >= 0.05, Landsat TM) 30 performs best 
+#   With very high noise (e.g. fixed noise = 0.1, Landsat TIR) 50 to 60 performs best
+#   With very low noise, 10 performs best 
+ggplot(test %>% filter(signal_to_noise_ratio == 100,
+                       fixed_noise == 0.02, 
+                       sample_period == 2) %>% 
+         group_by(neighborhood_window_width, cloudy_fraction) %>%
+         summarize(r_sqd_avg = mean(r_sqd),
+                   r_sqd_sd = sd(r_sqd))) + 
+  geom_line(aes(y=r_sqd_avg, x=cloudy_fraction, group=neighborhood_window_width, col=as.factor(neighborhood_window_width))) + 
+  scale_color_manual(values = c("60" = "red",
+                                "50" = "orange",
+                                "40" = "yellow",
+                                "30" = "green",
+                                "20" = "cyan",
+                                "10" = "violet"))
