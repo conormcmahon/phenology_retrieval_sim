@@ -4,11 +4,11 @@ Tests the sensitivity of local polynomial regression phenology retrieval method 
 
 Examples of simulated phenology retrievals from several multispectral satellites with a range of cloud cover values:
 
-![plot](./figures/sensor_comparison_final.png)
+<a href="url"><img src="https://raw.githubusercontent.com/conormcmahon/phenology_retrieval_sim/main/figures/sensor_comparison_final.png" align="center" width="600" ></a>
 
 Variation in R^2 between underlying and simulated phenology curves for a range of values in cloud cover, imaging frequency, and sensor noise. Red and blue lines are the lower and upper 5th percentiles and black lines are the medians of all simulated R^2 values for each set of parameters. 
 
-![plot](./figures/rsqd_vs_clouds_and_noise.png)
+<a href="url"><img src="https://raw.githubusercontent.com/conormcmahon/phenology_retrieval_sim/main/figures/rsqd_vs_clouds_and_noise.png" align="center" width="600" ></a>
 
 Brief file description:
 
