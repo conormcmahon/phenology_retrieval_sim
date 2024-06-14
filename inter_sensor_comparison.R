@@ -75,6 +75,11 @@ rootMeanSquareError <- function(vec_1, vec_2)
   sqrt(mean((vec_1 - vec_2)^2))
 }
 
+# OLS Bisector Method
+#   Gets the bisecting angle between both y = f(x) and x = f(y)
+#   This method is recommended for cases where both x and y are observed variables which contain measurement error 
+
+
 # Compares the Sentinel-2, Landsat, and MODIS timeseries for a given sample 
 getRSqdData <- function(ind){
   # Subset to current target point index (ind)
@@ -92,11 +97,11 @@ getRSqdData <- function(ind){
                ms_rsqd = modis_sen2$r.squared,
                ms_int = modis_sen2$coefficients[1,1],
                ms_slope = modis_sen2$coefficients[2,1],
-               ml_rmse = rootMeanSquareError(current_subset$ndvi_modis, current_subset$ndvi_sen2),
+               ms_rmse = rootMeanSquareError(current_subset$ndvi_modis, current_subset$ndvi_sen2),
                ls_rsqd = landsat_sen2$r.squared,
                ls_int = landsat_sen2$coefficients[1,1],
                ls_slope = landsat_sen2$coefficients[2,1],
-               ml_rmse = rootMeanSquareError(current_subset$ndvi_landsat, current_subset$ndvi_sen2),
+               ls_rmse = rootMeanSquareError(current_subset$ndvi_landsat, current_subset$ndvi_sen2),
                point_id = ind)
   )
 }
@@ -145,11 +150,11 @@ model_comparison_by_class <- model_comparison %>%
             ms_rsqd = mean(ms_rsqd),
             ms_int = mean(ms_int),
             ms_slope = mean(ms_slope),
-            ml_rmse = mean(ml_rmse),
+            ms_rmse = mean(ms_rmse),
             ls_rsqd = mean(ls_rsqd),
             ls_int = mean(ls_int),
             ls_slope = mean(ls_slope),
-            ml_rmse = mean(ml_rmse))
+            ls_rmse = mean(ls_rmse))
 
 # Generate some plots for visual comparison
 phenology_comparison <- ggplot() + 
@@ -189,23 +194,29 @@ phenology_comparison <- ggplot() +
   geom_line(data = all_data_by_class %>% filter(class != "golf_course"),
             aes(x=week,y=ndvi_modis),
             col="blue") + 
-  geom_text(data = model_comparison_by_class %>% filter(class != "golf_course"), 
-            aes(label = round(ml_rsqd, 3), x = 9, y = 0.85), hjust='left') + 
-  geom_text(data = model_comparison_by_class %>% filter(class != "golf_course"), 
-            aes(label = round(ms_rsqd, 3), x = 24, y = 0.85), hjust='left') + 
-  geom_text(data = model_comparison_by_class %>% filter(class != "golf_course"), 
-            aes(label = round(ls_rsqd, 3), x = 39, y = 0.85), hjust='left') + 
+  geom_richtext(data = data.frame(temp = 1),
+                aes(label = "<b>r<br>RMSE</b>"), x = 7, y = 0.92, 
+                label.colour="white") + 
+  geom_richtext(data = model_comparison_by_class %>% filter(class != "golf_course"), 
+            aes(label = paste("<b>M / L</b><br>", round(ml_rsqd^.5, 3), "<br>", round(ml_rmse, 3), sep=""), x = 13, y = 0.96), 
+            hjust='left', label.colour="white") + 
+  geom_richtext(data = model_comparison_by_class %>% filter(class != "golf_course"), 
+            aes(label = paste("<b>M / S</b><br>", round(ms_rsqd^.5, 3), "<br>", round(ms_rmse, 3), sep=""), x = 26, y = 0.96), 
+            hjust='left', label.colour="white") + 
+  geom_richtext(data = model_comparison_by_class %>% filter(class != "golf_course"), 
+            aes(label = paste("<b>L / S</b><br>", round(ls_rsqd^.5, 3), "<br>", round(ls_rmse, 3), sep=""), x = 39, y = 0.96), 
+            hjust='left',label.colour="white") + 
+  theme_bw() + 
   theme(strip.background = element_blank(),
         strip.text.x = element_blank()) + 
-  scale_y_continuous(limits=c(0,1.0), breaks=(1:5)/5, expand=c(0,0)) + 
+  scale_y_continuous(limits=c(0,1.1), breaks=(0:5)/5, expand=c(0,0)) + 
   scale_x_continuous(limits=c(0,52), breaks=(1:5)*10, expand=c(0,0)) + 
   facet_wrap(~factor(class, 
                      levels=c("willow","chaparral","grassland","golf_course","sand")),
              nrow=1) + 
   xlab("Week") + 
-  ylab("Normalized Difference Vegetation Index")
+  ylab("NDVI")
 ggsave(here::here("figures","sensor_comparison_by_class.png"), phenology_comparison, width=8, height=3)
-
 
 
 # Compares the Sentinel-2, Landsat, and MODIS timeseries for a given class 
@@ -255,6 +266,7 @@ ls_rmse_overall <- rootMeanSquareError(all_data$ndvi_landsat, all_data$ndvi_sen2
 
 
 # Sensor to Sensor Comparisons
+labelsize <- 3
 modis_landsat_comparison <- ggplot(all_data) + 
   geom_point(aes(x=ndvi_modis, y=ndvi_landsat, col=factor(week))) + 
   geom_abline(slope = 1, intercept = 0) +
@@ -264,10 +276,11 @@ modis_landsat_comparison <- ggplot(all_data) +
   theme(legend.position = "none") + 
   scale_x_continuous(limits=c(0,1), expand=c(0,0)) + 
   scale_y_continuous(limits=c(0,1), expand=c(0,0)) + 
-  geom_richtext(aes(label = paste("R<sup>2</sup> = ", round(ml_rsqd_overall, 3), sep=""), x = 0.47, y = 0.95), hjust='right', label.colour="white", size=labelsize) + 
+ # geom_richtext(aes(label = paste("R<sup>2</sup> = ", round(ml_rsqd_overall, 3), sep=""), x = 0.47, y = 0.95), hjust='right', label.colour="white", size=labelsize) + 
+  geom_richtext(aes(label = paste("r = ", round(ml_rsqd_overall^0.5, 3), sep=""), x = 0.47, y = 0.95), hjust='right', label.colour="white", size=labelsize) + 
   geom_richtext(aes(label = paste("RMSE = ", round(ml_rmse_overall, 3), sep=""), x = 0.47, y = 0.85), hjust='right', label.colour="white", size=labelsize) + 
-  geom_richtext(aes(label = paste("b = ", round(ml_slope_overall, 3), sep=""), x = 0.47, y = 0.75), hjust='right', label.colour="white", size=labelsize) + 
-  geom_richtext(aes(label = paste("m = ", round(ml_int_overall, 3), sep=""), x = 0.47, y = 0.65), hjust='right', label.colour="white", size=labelsize) + 
+ # geom_richtext(aes(label = paste("b = ", round(ml_slope_overall, 3), sep=""), x = 0.47, y = 0.75), hjust='right', label.colour="white", size=labelsize) + 
+ # geom_richtext(aes(label = paste("m = ", round(ml_int_overall, 3), sep=""), x = 0.47, y = 0.65), hjust='right', label.colour="white", size=labelsize) + 
   scale_color_viridis_d() 
 ggsave(here::here("figures","modis_landsat_comparison.png"), modis_landsat_comparison, width=2.5, height=2.5)
 modis_sen2_comparison <- ggplot(all_data) + 
@@ -279,10 +292,11 @@ modis_sen2_comparison <- ggplot(all_data) +
   theme(legend.position = "none") + 
   scale_x_continuous(limits=c(0,1), expand=c(0,0)) + 
   scale_y_continuous(limits=c(0,1), expand=c(0,0)) + 
-  geom_richtext(aes(label = paste("R<sup>2</sup> = ", round(ms_rsqd_overall, 3), sep=""), x = 0.47, y = 0.95), hjust='right', label.colour="white", size=labelsize) + 
+  # geom_richtext(aes(label = paste("R<sup>2</sup> = ", round(ml_rsqd_overall, 3), sep=""), x = 0.47, y = 0.95), hjust='right', label.colour="white", size=labelsize) + 
+  geom_richtext(aes(label = paste("r = ", round(ms_rsqd_overall^0.5, 3), sep=""), x = 0.47, y = 0.95), hjust='right', label.colour="white", size=labelsize) + 
   geom_richtext(aes(label = paste("RMSE = ", round(ms_rmse_overall, 3), sep=""), x = 0.47, y = 0.85), hjust='right', label.colour="white", size=labelsize) + 
-  geom_richtext(aes(label = paste("b = ", round(ms_slope_overall, 3), sep=""), x = 0.47, y = 0.75), hjust='right', label.colour="white", size=labelsize) + 
-  geom_richtext(aes(label = paste("m = ", round(ms_int_overall, 3), sep=""), x = 0.47, y = 0.65), hjust='right', label.colour="white", size=labelsize) + 
+  # geom_richtext(aes(label = paste("b = ", round(ms_slope_overall, 3), sep=""), x = 0.47, y = 0.75), hjust='right', label.colour="white", size=labelsize) + 
+  # geom_richtext(aes(label = paste("m = ", round(ms_int_overall, 3), sep=""), x = 0.47, y = 0.65), hjust='right', label.colour="white", size=labelsize) + 
   scale_color_viridis_d() 
 ggsave(here::here("figures","modis_sen2_comparison.png"), modis_sen2_comparison, width=2.5, height=2.5)
 landsat_sentinel_comparison <- ggplot(all_data) + 
@@ -294,10 +308,11 @@ landsat_sentinel_comparison <- ggplot(all_data) +
   theme(legend.position = "none") + 
   scale_x_continuous(limits=c(0,1), expand=c(0,0)) + 
   scale_y_continuous(limits=c(0,1), expand=c(0,0)) +
-  geom_richtext(aes(label = paste("R<sup>2</sup> = ", round(ls_rsqd_overall, 3), sep=""), x = 0.47, y = 0.95), hjust='right', label.colour="white", size=labelsize) + 
+  # geom_richtext(aes(label = paste("R<sup>2</sup> = ", round(ls_rsqd_overall, 3), sep=""), x = 0.47, y = 0.95), hjust='right', label.colour="white", size=labelsize) + 
+  geom_richtext(aes(label = paste("r = ", round(ls_rsqd_overall^0.5, 3), sep=""), x = 0.47, y = 0.95), hjust='right', label.colour="white", size=labelsize) + 
   geom_richtext(aes(label = paste("RMSE = ", round(ls_rmse_overall, 3), sep=""), x = 0.47, y = 0.85), hjust='right', label.colour="white", size=labelsize) + 
-  geom_richtext(aes(label = paste("b = ", round(ls_slope_overall, 3), sep=""), x = 0.47, y = 0.75), hjust='right', label.colour="white", size=labelsize) + 
-  geom_richtext(aes(label = paste("m = ", round(ls_int_overall, 3), sep=""), x = 0.47, y = 0.65), hjust='right', label.colour="white", size=labelsize) + 
+  # geom_richtext(aes(label = paste("b = ", round(ls_slope_overall, 3), sep=""), x = 0.47, y = 0.75), hjust='right', label.colour="white", size=labelsize) + 
+  # geom_richtext(aes(label = paste("m = ", round(ls_int_overall, 3), sep=""), x = 0.47, y = 0.65), hjust='right', label.colour="white", size=labelsize) + 
   scale_color_viridis_d() 
 ggsave(here::here("figures","landsat_sentinel_comparison.png"), landsat_sentinel_comparison, width=2.5, height=2.5)
 modis_landsat_comparison <- ggplot(all_data) + 

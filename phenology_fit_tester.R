@@ -22,13 +22,13 @@ write_csv(parameter_values, here::here("phenology_fit_test_parameters.csv"))
 #   make fitting code return ONLY the fit parameters (not the values or plot itself)
 #   write code to display plots for a set of fit parameters
 
-getPhenologyFit <- function(parameter_block, return_data_series=FALSE, try_quadratic=TRUE, try_linear=TRUE, soil_spec=c(0.24,0.4), leaf_spec=c(0.05,0.5))
+getPhenologyFit <- function(parameter_block, return_data_series=FALSE, try_quadratic=TRUE, try_linear=TRUE, soil_spec=c(0.24,0.4), leaf_spec=c(0.05,0.5), total_num_tests=NA, num_fitting_points=52)
 {
   index_seed <- as.numeric(parameter_block['seed_index'])
   if(index_seed %% 100 == 0)
-    print(paste("Reached ", index_seed, "th sample test out of ", nrow(parameter_values), ", or ", index_seed/nrow(parameter_values)*100, "%", sep=""))
+    print(paste("Reached ", index_seed, "th sample test out of ", total_num_tests, ", or ", index_seed/total_num_tests*100, "% of the entire dataset", sep=""))
   set.seed(index_seed)
-    
+  
   # Varying Parameters
   spring_rate <- as.numeric(parameter_block['spring_rate'])
   spring_doy <- as.numeric(parameter_block['spring_doy'])
@@ -41,7 +41,6 @@ getPhenologyFit <- function(parameter_block, return_data_series=FALSE, try_quadr
   cloudy_fraction <- as.numeric(parameter_block['cloudy_fraction'])
   
   # Fixed Parameters
-  num_fitting_points <- 52
   max_greenness <- 0.9
   #noise_sd <- max_greenness / signal_to_noise_ratio
   
@@ -93,6 +92,7 @@ getPhenologyFit <- function(parameter_block, return_data_series=FALSE, try_quadr
   
   fitAtPoint <- function(target_doy, phenology, doy_vector, window_width)
   {
+    print("starting a new point ")
     neighbor_indices <- which(abs((doy_vector - target_doy)) < window_width)
     neighbor_indices <- c(neighbor_indices, 
                           which(abs((doy_vector-365 - target_doy)) < window_width))
@@ -101,49 +101,80 @@ getPhenologyFit <- function(parameter_block, return_data_series=FALSE, try_quadr
                                neighborhood_doys_squared = (doy_vector[neighbor_indices]) ^ 2) %>%
       drop_na()
     if(nrow(neighborhood)==0)
-      return(NA)
+      return(data.frame(fitted_value = NA,
+                        samples_before = 0,
+                        samples_after = 0,
+                        stdev = 0,
+                        model_type = 0,
+                        model_r_sqd = 0))
     median_value <- median(neighborhood$neighborhood_values, na.rm=TRUE)
     neighborhood_mean <- mean(neighborhood$neighborhood_values, na.rm=TRUE)
     neighborhood_stdev <- sd(neighborhood$neighborhood_values, na.rm=TRUE)
+    if(is.na(neighborhood_stdev))
+      neighborhood_stdev <- 0
     
-    # Check to make sure there are enough data points to fit a quadratic
-    if((nrow(neighborhood) >= 6) & (try_quadratic))
+    # Get number of values before and after target date in neighborhood
+    num_samples_before <- nrow(neighborhood %>% filter(neighborhood_doys < target_doy))
+    num_samples_after <- nrow(neighborhood %>% filter(neighborhood_doys > target_doy))
+    num_samples_total <- nrow(neighborhood)
+    # Get variance of neighborhood
+    print('continued to here')
+    
+    getPrediction <- function()
     {
-      quadratic_fit <- lm(data=neighborhood, neighborhood_values ~ neighborhood_doys_squared+neighborhood_doys)
-      quadratic_prediction <- predict.lm(quadratic_fit, data.frame(neighborhood_doys=target_doy, neighborhood_doys_squared=target_doy^2))
-      # check to make sure value is physically reasonable
-      if((quadratic_prediction > -1) & (quadratic_prediction < 1))
-        # Check to make sure value is statistically reasonable
-        if(abs(quadratic_prediction-neighborhood_mean) < 1.5*neighborhood_stdev)
-          return(as.numeric(quadratic_prediction))
-    }
-    # If the above conditions aren't met, try a linear prediction:
-    if((nrow(neighborhood) >= 3) & (try_linear))
-    {
-      linear_fit <- lm(data=neighborhood, neighborhood_values ~ neighborhood_doys)
-      linear_prediction <- predict.lm(linear_fit, data.frame(neighborhood_doys=target_doy, neighborhood_doys_squared=target_doy^2))
-      # check to make sure value is physically reasonable
-      if((linear_prediction > -1) & (linear_prediction < 1))
-        # Check to make sure value is statistically reasonable
-        if(abs(linear_prediction-neighborhood_mean) < 1.5*neighborhood_stdev)
-          return(as.numeric(linear_prediction))
-    }
-    return(as.numeric(median_value))
+      # Check to make sure there are enough data points to fit a quadratic
+      if((nrow(neighborhood) >= 6) & (try_quadratic))
+      {
+        print('working on quadratic')
+        quadratic_fit <- lm(data=neighborhood, neighborhood_values ~ neighborhood_doys_squared+neighborhood_doys)
+        quadratic_prediction <- predict.lm(quadratic_fit, data.frame(neighborhood_doys=target_doy, neighborhood_doys_squared=target_doy^2))
+        # check to make sure value is physically reasonable
+        if((quadratic_prediction > -1) & (quadratic_prediction < 1))
+          # Check to make sure value is statistically reasonable
+          if(abs(quadratic_prediction-neighborhood_mean) < 1.5*neighborhood_stdev)
+            return(list(as.numeric(quadratic_prediction), 2, summary(quadratic_fit)$adj.r.squared))
+      }
+      # If the above conditions aren't met, try a linear prediction:
+      if((nrow(neighborhood) >= 3) & (try_linear))
+      {
+        print('working on linear')
+        linear_fit <- lm(data=neighborhood, neighborhood_values ~ neighborhood_doys)
+        linear_prediction <- predict.lm(linear_fit, data.frame(neighborhood_doys=target_doy))
+        # check to make sure value is physically reasonable
+        if((linear_prediction > -1) & (linear_prediction < 1))
+          # Check to make sure value is statistically reasonable
+          if(abs(linear_prediction-neighborhood_mean) < 1.5*neighborhood_stdev)
+            return(list(as.numeric(linear_prediction), 1, summary(linear_fit)$adj.r.squared))
+      }
+      return(list(as.numeric(median_value), 0, 0))
+    } # end of getPrediction()
+    print('about to run prediction')
+    prediction_data <- getPrediction()
+    print(prediction_data)
+    
+    return(data.frame(fitted_value = prediction_data[[1]],
+                      samples_before = num_samples_before,
+                      samples_after = num_samples_after,
+                      stdev = neighborhood_stdev,
+                      model_type = prediction_data[[2]],
+                      model_r_sqd = prediction_data[[3]]))
   }
   
   tic('fitting_time')
-  ndvi_fit <- unlist(lapply(fitting_points, fitAtPoint, phenology=ndvi_cloudless, doy_vector=overpass_doys_cloudless, window_width=neighborhood_window_width))
+  ndvi_fit <- bind_rows(lapply(fitting_points, fitAtPoint, phenology=ndvi_cloudless, doy_vector=overpass_doys_cloudless, window_width=neighborhood_window_width))
   
   # Final linear gap-filling in phenology fit
-  ndvi_fit <- na.approx(c(ndvi_fit,ndvi_fit,ndvi_fit))[(2+length(fitting_points)-min(which(!is.na(ndvi_fit)))):(1+2*length(fitting_points)-min(which(!is.na(ndvi_fit))))]
+  ndvi_fit$fitted_value <- na.approx(c(ndvi_fit$fitted_value,
+                                       ndvi_fit$fitted_value,
+                                       ndvi_fit$fitted_value))[(2+length(fitting_points)-min(which(!is.na(ndvi_fit$fitted_value)))):(1+2*length(fitting_points)-min(which(!is.na(ndvi_fit$fitted_value))))]
   fitting_time <- toc(quiet=TRUE)
   
   # Some Error Metrics...
   # RMS
-  rms_error <- sqrt(mean((ndvi_fit - ndvi_reference)^2))
+  rms_error <- sqrt(mean((ndvi_fit$fitted_value - ndvi_reference)^2))
   #print(paste("Root mean square error between fit and reference: ", rms_error, sep=""))
   # Linear Correlation (predicted vs. actual)
-  model_correlation <- lm(ndvi_reference ~ ndvi_fit)
+  model_correlation <- lm(ndvi_reference ~ ndvi_fit$fitted_value)
   
   output_dataframe <- data.frame(seed_index = index_seed,
                                  spring_rate = spring_rate,
@@ -160,27 +191,27 @@ getPhenologyFit <- function(parameter_block, return_data_series=FALSE, try_quadr
                                  scale = model_correlation$coefficients[2],
                                  intercept = model_intercept <- model_correlation$coefficients[1],
                                  execution_time = fitting_time$toc - fitting_time$tic)
-  
+
   if(!return_data_series)  
     return(output_dataframe)
 
-  fitting_data <- data.frame(dates=fitting_points, fitted=ndvi_fit, reference=ndvi_reference)
+  fitting_data <- data.frame(dates=fitting_points, fitted=ndvi_fit$fitted_value, reference=ndvi_reference)
   retrieved_data <- data.frame(doy=overpass_doys_cloudless, greenness=ndvi_cloudless)
   
   # Generate output plot comparing phenology prediction to reference
   plot_fit <- ggplot() + 
     geom_point(data=retrieved_data,
-               aes(x=doy, y=greenness), col="blue", size=1) + 
+               aes(x=doy, y=greenness), col="blue", size=1, alpha=0.5) + 
     geom_line(data=fitting_data, 
-              aes(x=dates,y=fitted), col="red") + 
+              aes(x=dates,y=fitted), col="red", size=1) + 
     geom_line(data=fitting_data, 
-              aes(x=dates,y=reference))
+              aes(x=dates,y=reference), size=1)
     
   return(list(output_dataframe,
               overpass_doys, ndvi_reference, 
               overpass_doys_cloudless, ndvi_cloudless,
               fitting_points, ndvi_fit, ndvi_reference,
-              plot_fit))
+              plot_fit, ndvi_with_noise))
 }
 
 
